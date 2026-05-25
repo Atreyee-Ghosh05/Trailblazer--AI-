@@ -1,45 +1,65 @@
-import { createContext, useState, useEffect } from 'react'
+import React, { createContext, useState, useEffect } from 'react';
 
-export const AuthContext = createContext()
+export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Check if user is already logged in on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem('token')
-    const savedUser = localStorage.getItem('user')
-    
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+
     if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+      try {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
-    setLoading(false)
-  }, [])
+    setIsLoading(false);
+  }, []);
 
+  // Login function
   const login = (newToken, userData) => {
-    setToken(newToken)
-    setUser(userData)
-    localStorage.setItem('token', newToken)
-    localStorage.setItem('user', JSON.stringify(userData))
-  }
+    setToken(newToken);
+    setUser(userData);
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+  };
 
+  // Logout function
   const logout = () => {
-    setToken(null)
-    setUser(null)
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-  }
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  };
 
-  const signup = (newToken, userData) => {
-    login(newToken, userData)
-  }
+  // Update user profile
+  const updateUser = (updatedUserData) => {
+    setUser(updatedUserData);
+    localStorage.setItem('user', JSON.stringify(updatedUserData));
+  };
+
+  const value = {
+    user,
+    token,
+    isLoading,
+    isAuthenticated: !!token,
+    login,
+    logout,
+    updateUser,
+  };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, signup }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
-  )
-}
+  );
+};
