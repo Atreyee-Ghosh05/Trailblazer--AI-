@@ -1,21 +1,27 @@
 import { useState, useContext, useEffect } from 'react'
 import { AuthContext } from '../context/AuthContext'
-import { ChatContext } from '../context/ChatContext'
 import Sidebar from '../components/Sidebar'
 import ChatWindow from '../components/ChatWindow'
 import { LogOut, Menu, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import api from '../services/api'
 
 const Dashboard = () => {
   const navigate = useNavigate()
   const { user, logout } = useContext(AuthContext)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
+  const [chats, setChats] = useState([])
+  const [selectedChatId, setSelectedChatId] = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  // Fetch chats on mount
   useEffect(() => {
     if (!user) {
       navigate('/login')
+      return
     }
+    fetchChats()
 
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768)
@@ -28,6 +34,52 @@ const Dashboard = () => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [user, navigate])
+
+  const fetchChats = async () => {
+    try {
+      setLoading(true)
+      const response = await api.get('/chat/history')
+      setChats(response.data)
+      if (response.data.length > 0) {
+        setSelectedChatId(response.data[0]._id)
+      }
+    } catch (error) {
+      console.error('Error fetching chats:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleNewChat = () => {
+    setSelectedChatId(null)
+    if (isMobile) {
+      setSidebarOpen(false)
+    }
+  }
+
+  const handleSelectChat = (chatId) => {
+    setSelectedChatId(chatId)
+    if (isMobile) {
+      setSidebarOpen(false)
+    }
+  }
+
+  const handleDeleteChat = async (chatId) => {
+    try {
+      await api.delete(`/chat/${chatId}`)
+      setChats(chats.filter(chat => chat._id !== chatId))
+      if (selectedChatId === chatId) {
+        setSelectedChatId(chats.length > 1 ? chats[0]._id : null)
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error)
+    }
+  }
+
+  const handleChatCreated = (newChat) => {
+    setChats([newChat, ...chats])
+    setSelectedChatId(newChat._id)
+  }
 
   const handleLogout = () => {
     logout()
@@ -53,7 +105,13 @@ const Dashboard = () => {
       {/* Sidebar */}
       {sidebarOpen && (
         <div className="fixed md:relative w-64 h-screen bg-gradient-to-b from-gray-800 to-gray-900 border-r border-white/10 z-40">
-          <Sidebar />
+          <Sidebar 
+            chats={chats}
+            selectedChat={selectedChatId}
+            onSelectChat={handleSelectChat}
+            onNewChat={handleNewChat}
+            onDeleteChat={handleDeleteChat}
+          />
           {isMobile && (
             <button
               onClick={() => setSidebarOpen(false)}
@@ -83,7 +141,20 @@ const Dashboard = () => {
         </div>
 
         {/* Chat Window */}
-        <ChatWindow />
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-gray-400">Loading chats...</p>
+            </div>
+          </div>
+        ) : (
+          <ChatWindow 
+            chatId={selectedChatId} 
+            onChatCreated={handleChatCreated}
+            onChatsUpdated={fetchChats}
+          />
+        )}
       </div>
 
       {/* Background decoration */}
