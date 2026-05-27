@@ -11,6 +11,11 @@ export const sendMessage = async (req, res, next) => {
       return res.status(400).json({ error: 'Message cannot be empty' });
     }
 
+    // Validate Groq API Key
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(500).json({ error: 'Groq API key is not configured' });
+    }
+
     // Find or create chat
     let chat = chatId ? await Chat.findById(chatId) : null;
     if (!chat) {
@@ -27,10 +32,10 @@ export const sendMessage = async (req, res, next) => {
       content: message
     });
 
-    // Call Grok API
+    // Call Groq API
     try {
-      const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-        model: 'grok-beta',
+      const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+        model: 'mixtral-8x7b-32768',
         messages: [
           {
             role: 'system',
@@ -41,11 +46,11 @@ export const sendMessage = async (req, res, next) => {
             content: msg.content
           }))
         ],
-        stream: false,
         temperature: 0.8,
+        max_tokens: 1024
       }, {
         headers: {
-          'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
           'Content-Type': 'application/json'
         }
       });
@@ -64,11 +69,12 @@ export const sendMessage = async (req, res, next) => {
       res.json({
         success: true,
         chatId: chat._id,
-        message: assistantMessage
+        message: assistantMessage,
+        reply: assistantMessage
       });
-    } catch (grokError) {
-      console.error('Grok API Error:', grokError.response?.data || grokError.message);
-      return res.status(500).json({ error: 'Failed to get response from Grok AI' });
+    } catch (groqError) {
+      console.error('Groq API Error:', groqError.response?.data || groqError.message);
+      return res.status(500).json({ error: 'Failed to get response from Groq AI: ' + (groqError.response?.data?.error?.message || groqError.message) });
     }
   } catch (error) {
     next(error);
